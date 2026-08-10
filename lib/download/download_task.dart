@@ -17,6 +17,12 @@ class DownloadTask {
   /// The priority of the task (default is 1, higher means higher priority).
   int priority;
 
+  /// Last time a progress event was emitted for THIS task (ms since
+  /// epoch). Progress throttling is per task: a pool-wide gate starves
+  /// individual tasks of progress events when several download
+  /// concurrently (each task then reports ~1/k as often).
+  int lastProgressUpdateMs = 0;
+
   /// The progress of the download, from 0.0 (not started) to 1.0 (completed).
   double progress;
 
