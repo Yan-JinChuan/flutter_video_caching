@@ -37,4 +37,10 @@ class Config {
 
   /// A custom cache identifier string.
   static String customCacheId = 'Custom-Cache-ID';
+
+  /// How long an MP4 serve loop waits for an in-flight download before
+  /// falling back to a fresh prioritised re-download. Bounds the
+  /// previously infinite wait (a download that never completes otherwise
+  /// wedges the serve loop and its socket forever — see issue #38).
+  static Duration serveWaitTimeout = const Duration(seconds: 15);
 }

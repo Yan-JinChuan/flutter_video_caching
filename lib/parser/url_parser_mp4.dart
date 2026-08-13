@@ -48,6 +48,26 @@ class UrlParserMp4 implements UrlParser {
     return null;
   }
 
+  /// Polls [read] until it yields data or [timeout] elapses (null on
+  /// timeout). Replaces the previous unbounded `while (data == null)`
+  /// wait: a download that never completes (cancelled task, dropped
+  /// connection, non-streamable file — see issue #38) otherwise wedges
+  /// the serve loop and its pool slot forever. On timeout the caller
+  /// falls back to the existing prioritised re-download.
+  static Future<Uint8List?> pollCache(
+    Future<Uint8List?> Function() read, {
+    Duration? timeout,
+    Duration interval = const Duration(milliseconds: 100),
+  }) async {
+    final deadline = DateTime.now().add(timeout ?? Config.serveWaitTimeout);
+    Uint8List? data;
+    while (data == null && DateTime.now().isBefore(deadline)) {
+      await Future.delayed(interval);
+      data = await read();
+    }
+    return data;
+  }
+
   /// Downloads data from the network for the given [task].
   ///
   /// Returns a [Uint8List] containing the downloaded data,
@@ -201,11 +221,8 @@ class UrlParserMp4 implements UrlParser {
       Uint8List? data = await cache(task);
       // if the task has been added, wait for the download to complete
       bool exitUri = VideoProxy.downloadManager.isTaskExit(task);
-      if (exitUri) {
-        while (data == null) {
-          await Future.delayed(const Duration(milliseconds: 100));
-          data = await cache(task);
-        }
+      if (exitUri && data == null) {
+        data = await pollCache(() => cache(task));
       }
       if (data == null) {
         task.priority += 2;
@@ -298,11 +315,8 @@ class UrlParserMp4 implements UrlParser {
       Uint8List? data = await cache(task);
       // if the task has been added, wait for the download to complete
       bool exitUri = VideoProxy.downloadManager.isTaskExit(task);
-      if (exitUri) {
-        while (data == null) {
-          await Future.delayed(const Duration(milliseconds: 100));
-          data = await cache(task);
-        }
+      if (exitUri && data == null) {
+        data = await pollCache(() => cache(task));
       }
       if (data == null) {
         task.priority += 2;
