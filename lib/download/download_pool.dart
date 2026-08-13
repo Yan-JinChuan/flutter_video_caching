@@ -39,7 +39,6 @@ class DownloadPool {
   late final StreamController<DownloadTask> _streamController;
 
   /// The last time progress was updated.
-  DateTime _progressTime = DateTime.now();
 
   /// Constructs a [DownloadPool] with the specified [poolSize].
   /// Throws an [ArgumentError] if the pool size is less than or equal to zero.
@@ -273,16 +272,15 @@ class DownloadPool {
     task.downloadedBytes = task.cachedBytes + received;
     task.totalBytes = total == -1 ? 0 : (task.cachedBytes + total);
 
-    // Calculate the interval between the current time and the last update time
-    final currentTime = DateTime.now();
-    final timeDiff = currentTime.difference(_progressTime).inMilliseconds;
-
-    // If the time interval exceeds the specified minimum update interval,
-    // or the download is complete, then update progress
+    // Throttle per task, not pool-wide: with a single shared timestamp,
+    // k concurrent downloads share one emission budget and each task
+    // reports only every k * MIN_PROGRESS_UPDATE_INTERVAL ms — progress
+    // bars stutter and rate estimates derived from the events read low.
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
     if (task.status == DownloadStatus.DOWNLOADING &&
-        timeDiff >= MIN_PROGRESS_UPDATE_INTERVAL) {
+        nowMs - task.lastProgressUpdateMs >= MIN_PROGRESS_UPDATE_INTERVAL) {
       _updateProgress(task);
-      _progressTime = currentTime;
+      task.lastProgressUpdateMs = nowMs;
     }
   }
 
