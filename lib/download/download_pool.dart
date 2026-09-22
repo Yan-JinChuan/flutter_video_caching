@@ -3,13 +3,14 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:native_dio_adapter/native_dio_adapter.dart';
 import 'package:synchronized/synchronized.dart';
 
 import '../cache/lru_cache_singleton.dart';
 import '../ext/file_ext.dart';
 import '../ext/gesture_ext.dart';
 import '../ext/log_ext.dart';
+import '../http/http_client_builder.dart';
+import '../http/http_client_default.dart';
 import 'download_status.dart';
 import 'download_task.dart';
 
@@ -38,15 +39,16 @@ class DownloadPool {
   /// Stream controller for broadcasting download task updates to listeners.
   late final StreamController<DownloadTask> _streamController;
 
-  /// The last time progress was updated.
-
   /// Constructs a [DownloadPool] with the specified [poolSize].
   /// Throws an [ArgumentError] if the pool size is less than or equal to zero.
-  DownloadPool({int poolSize = MAX_POOL_SIZE}) : _poolSize = poolSize {
+  DownloadPool({
+    int poolSize = MAX_POOL_SIZE,
+    HttpClientBuilder? httpClientBuilder,
+  }) : _poolSize = poolSize {
     if (_poolSize <= 0) {
       throw ArgumentError('Pool size must be greater than 0');
     }
-    _client = Dio()..httpClientAdapter = _createHttpClientAdapter();
+    _client = (httpClientBuilder ?? HttpClientDefault()).create();
     _streamController = StreamController.broadcast();
   }
 
@@ -65,19 +67,6 @@ class DownloadPool {
   List<DownloadTask> get downloadingTasks => _taskList
       .where((task) => task.status == DownloadStatus.DOWNLOADING)
       .toList();
-
-  HttpClientAdapter _createHttpClientAdapter() {
-    try {
-      return NativeAdapter();
-    } catch (error) {
-      // Some simulator/runtime combinations cannot load native_dio_adapter's
-      // Objective-C dynamic library. Falling back keeps VideoProxy usable; the
-      // default Dio adapter still supports the Range requests used here.
-      logW(
-          '[DownloadPool] NativeAdapter unavailable, fallback to Dio default: $error');
-      return HttpClientAdapter();
-    }
-  }
 
   /// Finds a task in the pool by its [taskId].
   DownloadTask? findTaskById(String taskId) =>
@@ -320,8 +309,10 @@ class DownloadPool {
     File tmpFile = File('${task.savePath}.tmp');
     // Check if the download was cancelled.
     if (error is DioException && CancelToken.isCancel(error)) {
-      logV('[DownloadPool] Download file size: '
-          '${tmpFile.existsSync() ? tmpFile.lengthSync() : 0}');
+      logV(
+        '[DownloadPool] Download file size: '
+        '${tmpFile.existsSync() ? tmpFile.lengthSync() : 0}',
+      );
       logV('[DownloadPool] Download ${task.status.name}: ${task.url}');
     } else {
       // Handle HTTP errors and retry logic.

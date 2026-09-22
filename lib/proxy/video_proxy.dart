@@ -82,7 +82,10 @@ class VideoProxy {
 
     // Initialize the download manager with the specified concurrency.
     _maxConcurrentDownloads = maxConcurrentDownloads;
-    downloadManager = DownloadManager(maxConcurrentDownloads);
+    downloadManager = DownloadManager(
+      maxConcurrentDownloads,
+      httpClientBuilderImpl,
+    );
 
     // Set the URL matcher implementation (custom or default).
     urlMatcherImpl = urlMatcher ?? UrlMatcherDefault();
@@ -108,7 +111,10 @@ class VideoProxy {
     // Dispose stale download state (dead TCP connections, in-flight tasks)
     // and recreate with a fresh Dio client.
     downloadManager.dispose();
-    downloadManager = DownloadManager(_maxConcurrentDownloads);
+    downloadManager = DownloadManager(
+      _maxConcurrentDownloads,
+      httpClientBuilderImpl,
+    );
     await _localProxyServer.restart();
   }
 

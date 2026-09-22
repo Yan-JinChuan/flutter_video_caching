@@ -1,6 +1,6 @@
-import 'dart:io';
-
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
+import 'package:native_dio_adapter/native_dio_adapter.dart';
 
 import 'http_client_builder.dart';
 
@@ -22,6 +22,15 @@ class HttpClientDefault extends HttpClientBuilder {
   /// The returned [Dio] can be used to perform HTTP requests.
   @override
   Dio create() {
-    return Dio();
+    final dio = Dio();
+    try {
+      dio.httpClientAdapter = NativeAdapter(
+        createFallbackAdapter: (_, __) => IOHttpClientAdapter(),
+      );
+    } catch (_) {
+      // Keep the default Dart IO adapter when the native adapter cannot be
+      // loaded, for example on an unsupported simulator/runtime.
+    }
+    return dio;
   }
 }

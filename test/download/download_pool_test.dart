@@ -31,6 +31,14 @@ void main() {
       pool.dispose();
     });
 
+    test('uses the provided HTTP client builder', () {
+      final builder = _RecordingHttpClientBuilder();
+      final customPool = DownloadPool(httpClientBuilder: builder);
+      addTearDown(customPool.dispose);
+
+      expect(builder.createCount, 1);
+    });
+
     test('addTask adds task to pool', () async {
       final task = DownloadTask(uri: Uri.parse('https://a.com/1.mp4'));
       await pool.addTask(task);
@@ -94,4 +102,14 @@ void main() {
       expect(pool.taskList, isEmpty);
     });
   });
+}
+
+class _RecordingHttpClientBuilder extends HttpClientBuilder {
+  int createCount = 0;
+
+  @override
+  Dio create() {
+    createCount++;
+    return Dio();
+  }
 }
